@@ -951,7 +951,7 @@ def build_intro():
                              marker=dict(size=12, color="#0b0b0b"), showlegend=False, textfont=dict(color=TEXT2, size=13)))
     pmf = panel("intro-pmf", "Free energy along d_ee", "reference: 42 umbrella windows + MBAR", data,
                 pmf_layout(dict(yaxis=dict(title="F (kcal/mol)", range=[0, 28]), showlegend=False)), wide=True)
-    return dict(title="The system: deca-alanine", d_pair=list(G["d_pair"]), structures=structs, facts=facts, panels=[pmf])
+    return dict(title="The system: deca-alanine", welcome='Welcome! This tool lets you explore different enhanced sampling algorithms on a small but interesting test system, deca-alanine in vacuum. Developed by Daniel D. Richman, Dror Lab, Stanford, 2026.', d_pair=list(G["d_pair"]), structures=structs, facts=facts, panels=[pmf])
 
 
 LO_M, HI_M = 5.0, 30.0   # region the convergence metrics are scored on

@@ -372,7 +372,7 @@ async function showIntro() {
   el("traj-section").style.display = "none";
   const intro = state.index.intro;
   if (!intro) { setHeader("The system", state.index.system?.blurb, "", [], "running… intro not built yet"); renderPanels([]); return; }
-  setHeader(intro.title, state.index.system?.name || "", "", [], "");
+  setHeader(intro.title, intro.welcome || "", "", [], state.index.system?.name || "");
   el("intro-facts").innerHTML = intro.facts.map(f => `<li>${f}</li>`).join("");
   renderPanels(intro.panels || []);
   const host = el("intro-structs");
