@@ -1,0 +1,17 @@
+# CPU-only environment for the deca-alanine enhanced-sampling demo.
+#   micromamba create -f environment.yml -y
+name: esdemo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - openmm>=8.2
+  - openmmtools
+  - pymbar>=4
+  - ambertools        # tleap: builds Ace-(Ala)10-Nme as a helix
+  - mdtraj
+  - numpy
+  - scipy
+  - netcdf4
+  - matplotlib
+  - ffmpeg            # backup movies

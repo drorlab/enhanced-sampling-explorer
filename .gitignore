@@ -1,0 +1,9 @@
+# raw simulation output (~730 MB) - regenerate with sims/; only the small build inputs are kept
+results/*
+!results/build/
+results/build/leap.log
+__pycache__/
+*.pyc
+gcp/.zone
+esdemo-dashboard.tar.gz
+dashboard/backup/

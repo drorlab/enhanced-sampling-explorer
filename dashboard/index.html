@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Enhanced Sampling Explorer</title>
+<link rel="stylesheet" href="style.css">
+<script src="vendor/plotly.min.js"></script>
+<script src="vendor/3Dmol-min.js"></script>
+</head>
+<body>
+<div id="layout">
+
+  <nav id="sidebar">
+    <h1>The Enhanced Sampling Explorer</h1>
+    <p class="blurb" id="system-blurb"></p>
+    <p class="sub" id="generated"></p>
+    <button id="nav-intro" class="nav-comparison">The system &amp; d<sub>ee</sub></button>
+    <button id="nav-comparison" class="nav-comparison">Comparison: all methods</button>
+    <button id="nav-estimators" class="nav-comparison">Estimators: MBAR vs WHAM vs …</button>
+    <div id="method-list"></div>
+  </nav>
+
+  <main id="main">
+    <header id="head">
+      <h2 id="title">Loading…</h2>
+      <p id="blurb" class="blurb"></p>
+      <p id="fe-how" class="fe-how"></p>
+      <div id="stats" class="stats"></div>
+      <p id="note" class="note"></p>
+    </header>
+
+    <section id="traj-section" class="panel traj-panel">
+      <h3>Trajectory <span class="hint" id="traj-title"></span></h3>
+      <div class="view-toggle" id="view-toggle-single"></div>
+      <div id="traj-chips"></div>
+      <div class="traj-grid">
+        <div class="viewer-col">
+          <div id="viewer"></div>
+          <div class="controls">
+            <button id="play">&#9654; play</button>
+            <input type="range" id="frame" min="0" max="0" value="0">
+            <span id="readout" class="readout"></span>
+          </div>
+          <div class="controls">
+            <label class="slider">speed
+              <input type="range" id="speed" min="15" max="400" value="60" style="direction: rtl">
+            </label>
+            <label><input type="checkbox" id="opt-h"> hydrogens</label>
+            <label><input type="checkbox" id="opt-hb" checked> i&rarr;i+4 H-bonds</label>
+            <label><input type="checkbox" id="opt-cartoon"> cartoon</label>
+            <button id="reset-view">reset view</button>
+          </div>
+          <p class="hint" id="frame-label"></p>
+        </div>
+        <div class="ts-col"><div id="ts-plot" class="plot tall"></div>
+          <div id="sync-box" style="display:none"></div></div>
+      </div>
+    </section>
+
+    <section id="ens-section" class="panel traj-panel" style="display:none">
+      <h3><span id="ens-title"></span> <span class="hint" id="ens-hint"></span></h3>
+      <div class="view-toggle" id="view-toggle-grid"></div>
+      <div id="ens-grid"></div>
+      <div class="controls">
+        <button id="ens-play">&#9654; play</button>
+        <input type="range" id="ens-frame" min="0" max="0" value="0">
+        <span id="ens-readout" class="readout"></span>
+      </div>
+      <p class="hint" id="ens-events"></p>
+    </section>
+
+    <section id="intro-section" style="display:none">
+      <div id="intro-structs" class="intro-structs"></div>
+      <ul id="intro-facts" class="intro-facts"></ul>
+    </section>
+
+    <section id="panels" class="panels"></section>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

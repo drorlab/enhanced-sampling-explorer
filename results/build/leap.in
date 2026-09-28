@@ -1,0 +1,6 @@
+source leaprc.protein.ff14SB
+m = sequence { ACE ALA ALA ALA ALA ALA ALA ALA ALA ALA ALA NME }
+impose m { 2 3 4 5 6 7 8 9 10 11 } { { N CA C N -47.0 } { C N CA C -57.0 } }
+saveamberparm m deca.prmtop deca.inpcrd
+savepdb m helix_leap.pdb
+quit
