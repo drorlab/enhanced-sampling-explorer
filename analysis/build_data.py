@@ -164,6 +164,23 @@ def fe_sync(key, snaps, hint, color=None):
                 color=color or COLORS[key], ylabel="F (kcal/mol)", yrange=[0, 30], xrange=[3, 36])
 
 
+def trace_sync(title, hint, series, ylabel):
+    """Live panel: a fixed time series with a cursor that follows the movie. series = [dict(x, y, name, color, mode)]."""
+    return dict(kind="trace", title=title, hint=hint, ylabel=ylabel, series=series)
+
+
+def sams_state_sync(t, labels, st, d, temp, color, max_pts=3000):
+    k = max(1, len(t) // max_pts)
+    ser = [dict(x=clean(t[::k], 4), y=clean(labels[st][::k], 2), name="temperature" if temp else "umbrella centre r0",
+                color=color, mode="lines", shape="hv")]
+    if not temp:
+        ser.append(dict(x=clean(t[::k], 4), y=clean(d[::k], 2), name="walker d_ee", color=TEXT2, mode="lines", shape="linear"))
+    return trace_sync("Walker's temperature over time" if temp else "Umbrella centre and walker d_ee over time",
+                      "state visited every 1 ps; the cursor follows the movie" if temp
+                      else "r0 of the current umbrella (colour) and the walker's actual d_ee (grey); the cursor follows the movie",
+                      ser, "temperature (K)" if temp else "Å")
+
+
 def disp_sel(n):
     """Frame indices write_traj keeps for an n-frame trajectory."""
     return np.unique(np.linspace(0, n - 1, min(MAX_FRAMES, n)).astype(int))
@@ -875,7 +892,7 @@ def do_sams(name="sams"):
                        [ref_trace(), line(labels, fin, "SAMS f_k (online)", COLORS[name], dash="dot", width=2, mode="lines+markers"),
                         line(CENT, F, "MBAR", COLORS[name], width=2.5)], pmf_layout(dict(yaxis=dict(title="F (kcal/mol)", range=[0, 30]))))]
     total = n * ps / 1000
-    method = dict(key=name, syncs=[sync_fe], stats=stats_list(states=str(K), simulated=f"{total:.1f} ns", stage=("2 since " + f"{t[s1]:.1f} ns") if s1 else "1 (burn-in)",
+    method = dict(key=name, syncs=[sams_state_sync(t, labels, st, d, temp, COLORS[name]), sync_fe], stats=stats_list(states=str(K), simulated=f"{total:.1f} ns", stage=("2 since " + f"{t[s1]:.1f} ns") if s1 else "1 (burn-in)",
                                               **{"ΔF 15→30 Å": f"{dF(F):.1f}" if dF(F) else "–"}),
                   trajectories=[dict(key=key, label="walker", group="trajectory")], default_traj=key,
                   panels=[panel(f"{name}-state", f"The walker jumps between {what} states", f"state visited each 1 ps iteration (y = {what})",

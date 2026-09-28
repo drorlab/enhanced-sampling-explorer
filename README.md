@@ -47,7 +47,7 @@ open `/dashboard/`.
 - **Estimators:** MBAR, WHAM (0.5 Å and 2 Å bins), umbrella integration and histogram stitching, all on the same umbrella-sampling windows.
 - **One page per method.** Each has:
   - a trajectory movie, with a synced d<sub>ee</sub> / H-bond time series;
-  - a live "free-energy estimate so far" plot (plus the bias for metadynamics);
+  - a live "free-energy estimate so far" plot (plus the bias for metadynamics, and the walker's temperature or umbrella over time for SAMS);
   - a lineage graph of the simulations;
   - method-specific diagnostics;
   - for T-REMD, steered MD and umbrella sampling, a grid view of all copies at once (T-REMD highlights exchanges).
@@ -108,3 +108,7 @@ cd .. && python analysis/build_data.py       # ~10 min on 2 cores
 The system is tiny (112 atoms), so the CPU platform with one thread per process beats a GPU.
 Expect about 830 ns/day per core. `gcp/create.sh` starts a spot CPU VM, and
 `gcp/sync.sh push|pull` moves code and data to and from it.
+
+## License
+
+MIT. See [LICENSE](LICENSE). Plotly.js and 3Dmol.js in `dashboard/vendor/` are distributed under their own licenses (MIT and BSD-3-Clause).

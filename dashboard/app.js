@@ -720,6 +720,17 @@ function drawSync() {
     const div = document.createElement("div");
     div.className = "plot sync-plot"; div.id = `sync-plot-${i}`;
     box.appendChild(h); box.appendChild(div);
+    if (s.kind === "trace") {
+      const tr = s.series.map(q => ({ type: "scattergl", mode: q.mode || "lines", x: q.x, y: q.y, name: q.name,
+        line: { color: q.color, width: q.color === TEXT2 ? 1 : 1.5, shape: q.shape || "linear" }, opacity: q.color === TEXT2 ? 0.6 : 1 }));
+      tr.push({ type: "scatter", mode: "markers", x: [null], y: [null], name: "now", marker: { size: 11, color: "#0b0b0b" }, showlegend: false });
+      Plotly.react(div, tr, panelLayout({
+        margin: { l: 60, r: 20, t: 10, b: 45 }, showlegend: s.series.length > 1, legend: { orientation: "h", y: 1.12, x: 0 },
+        xaxis: { title: { text: "t (ns)" } }, yaxis: { title: { text: s.ylabel || "" } },
+        shapes: [{ type: "line", x0: 0, x1: 0, y0: 0, y1: 1, yref: "paper", line: { color: "#0b0b0b", width: 1.5, dash: "dot" } }],
+      }), PLOT_CONFIG);
+      return;
+    }
     const pmf = s.kind === "pmf";
     const last = s.V[s.V.length - 1] || [];
     const vmax = pmf ? (s.yrange || [0, 30])[1] : (Math.max(...last.filter(v => v !== null)) * 1.1 || 1);
@@ -744,6 +755,13 @@ function updateSync(t, d) {
   list.forEach((s, i) => {
     const div = el(`sync-plot-${i}`);
     if (!div || !div.data) return;
+    if (s.kind === "trace") {
+      const q = s.series[0];
+      let j = 0; while (j + 1 < q.x.length && q.x[j + 1] <= t) j++;
+      Plotly.relayout(div, { "shapes[0].x0": t, "shapes[0].x1": t });
+      Plotly.restyle(div, { x: [[t]], y: [[q.y[j]]] }, [s.series.length]);
+      return;
+    }
     let k = -1;
     while (k + 1 < s.t_ns.length && s.t_ns[k + 1] <= t + 1e-9) k++;
     const V = k >= 0 ? s.V[k] : s.x.map(() => null);
