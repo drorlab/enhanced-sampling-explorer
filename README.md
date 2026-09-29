@@ -1,8 +1,6 @@
 # The Enhanced Sampling Explorer
 
-An interactive, offline dashboard that compares ten enhanced-sampling methods on one small
-peptide. You can watch every trajectory and see how each method's free-energy estimate
-converges as samples accumulate.
+## [**Click here to visit the Explorer!**](https://drorlab.github.io/enhanced-sampling-explorer/dashboard)
 
 **System.** Ace-(Ala)<sub>10</sub>-Nme in vacuum. AMBER ff14SB, 300 K, Langevin dynamics,
 2 fs steps, 112 atoms.
