@@ -8,9 +8,14 @@ uses whatever has been written so far.
 """
 import glob
 import json
+import os
 import sys
 import time
 from pathlib import Path
+
+# pymbar's JAX backend caches a compiled program per array shape; with dozens of MBAR calls on
+# differently sized subsets that grew past 3 GB and was OOM-killed. The NumPy solver is plenty fast here.
+os.environ.setdefault("PYMBAR_DISABLE_JAX", "1")
 
 import numpy as np
 from scipy.special import logsumexp
@@ -28,17 +33,19 @@ MAX_FRAMES = 400
 FRACS = tuple(np.round(np.geomspace(0.03, 1.0, 14), 4))   # sampling checkpoints for convergence
 
 COLORS = dict(metad="#2a78d6", smd="#eb6834", we="#1baf7a", remd="#eda100", sams="#e87ba4",
-              gamd="#008300", md="#4a3aa7", reference="#52514e", we2d="#e34948", samsT="#e87ba4")
+              gamd="#008300", md="#4a3aa7", reference="#52514e", we2d="#e34948", samsT="#e87ba4", samsT0="#85847f")
+DASH = dict(samsT="dash", samsT0="dot")
 TEXT2, MUTED, RAMP = "#52514e", "#9a9893", ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 NAMES = dict(md="Plain MD", metad="Well-tempered metadynamics", smd="Steered MD + Jarzynski",
-             we="Weighted ensemble (bins on d_ee)", we2d="Weighted ensemble (bins on d_ee × H-bonds)", remd="Temperature REMD", sams="SAMS (adaptive umbrellas)", samsT="SAMS over temperature (simulated tempering)",
+             we="Weighted ensemble (bins on d_ee)", we2d="Weighted ensemble (bins on d_ee × H-bonds)", remd="Temperature REMD", sams="SAMS (adaptive umbrellas)", samsT="SAMS over temperature (simulated tempering)", samsT0="SAMS over temperature, uninitialized weights (cautionary)",
              gamd="Gaussian accelerated MD", reference="Umbrella sampling + MBAR (reference)")
 BLURB = dict(
     md='Unbiased Langevin dynamics at 300 K for 20 ns. The baseline: it samples the helix and the compact states but never reaches the extended chain, so it says nothing about the uphill side of the profile.',
     metad="Every 1 ps a Gaussian (1.2 kJ/mol high, 0.5 Å wide) is added to a bias on d_ee at the walker's position, pushing it away from where it has already been. Well-tempered: heights shrink as exp(−V/kΔT) with γ = 10, so the bias converges instead of overfilling.",
     gamd='Dual-boost Gaussian accelerated MD: whenever the total or dihedral energy V is below a threshold E, a harmonic boost ½k(E−V)² is added, lifting every energy basin without choosing a CV. E and k come from a short conventional run and keep the boost near-Gaussian (σ₀ = 6 kcal/mol).',
     remd='Temperature replica exchange: 10 copies at 300–700 K run side by side, and every 1 ps neighbouring temperatures attempt a Metropolis swap. Hot copies cross barriers and hand their configurations down to 300 K. No CV.',
-    samsT="Self-adjusting mixture sampling over temperature (simulated tempering): one copy hops among 12 temperatures (300–700 K) while SAMS learns each temperature's free energy on the fly, so all are visited equally. No CV.",
+    samsT0="The same simulated-tempering run, but with every temperature's weight starting at zero (the SAMS default). For temperatures that guess is off by ~75 kT, so the walker sits at the hot end and SAMS spends the whole 12 ns learning the gap: it never visits 300–378 K and never leaves stage 1. Its '300 K' profile is MBAR extrapolating from samples at 408 K and above, so treat it as a warning, not a result.",
+    samsT="Self-adjusting mixture sampling over temperature (simulated tempering): one copy hops among 12 temperatures (300–700 K) while SAMS learns each temperature's free energy on the fly, so all are visited equally. Initial weights come from a short unbiased run at each temperature (12 × 120 ps, integrating ⟨U⟩ over β), so the walker covers the full ladder from the start. No CV.",
     sams="Self-adjusting mixture sampling over umbrellas: one copy hops among 42 harmonic restraints on d_ee (4–35 Å) while SAMS learns each restraint's free energy on the fly, so all are visited equally. Adaptive umbrella sampling with a single walker.",
     we='Weighted ensemble: many short (10 ps) unbiased walkers, each carrying a probability weight. After each segment, walkers are split in under-occupied 1 Å d_ee bins and merged in over-occupied ones (4 per bin), conserving total weight exactly. It stalls near 21 Å, where going further means breaking helical H-bonds that d_ee bins cannot see.',
     we2d='The same weighted ensemble, binned on (d_ee, number of helical H-bonds), so walkers that start to lose H-bonds get their own bins and are split. More bins means more walkers per iteration, and so fewer iterations for the same cost.',
@@ -51,14 +58,15 @@ FE_HOW = dict(
     gamd='Frames reweighted by exp(βΔV); per bin via a 2nd-order cumulant expansion.',
     remd='MBAR over all replicas and temperatures, evaluated at 300 K.',
     samsT="MBAR over the walker's samples at all temperatures, evaluated at 300 K.",
+    samsT0="MBAR evaluated at 300 K, a temperature this run never visited (extrapolation).",
     sams="MBAR over all umbrella states; SAMS's online log Z is a smoothed estimate of the same profile.",
     we='F(bin) = −kT ln(total walker weight in the bin).',
     we2d='F(bin) = −kT ln(total walker weight), summed over H-bond bins onto d_ee.',
     smd='F(r₀) = −kT ln⟨exp(−W(r₀)/kT)⟩ over pulls (Jarzynski).',
     reference='MBAR over all windows.',
 )
-NEEDS_CV = dict(md=False, metad=True, smd=True, we=True, we2d=True, remd=False, sams=True, samsT=False, gamd=False, reference=True)
-ORDER = ["md", "metad", "gamd", "remd", "samsT", "sams", "we", "we2d", "smd", "reference"]
+NEEDS_CV = dict(md=False, metad=True, smd=True, we=True, we2d=True, remd=False, sams=True, samsT=False, samsT0=False, gamd=False, reference=True)
+ORDER = ["md", "metad", "gamd", "remd", "samsT", "samsT0", "sams", "we", "we2d", "smd", "reference"]
 
 
 # ----------------------------------------------------------------- helpers
@@ -831,6 +839,7 @@ def do_sams(name="sams"):
     labels, st, logZ, stage, d, u = z["labels"], z["state"], z["logZ"], z["stage"], z["d"], z["u"]
     k = float(z["k"]); ps = float(z["ps_per_iter"]); n = len(st); K = len(labels)
     temp = str(z["mode"]) == "temperature"
+    t_init = K * float(z["init_ps"]) / 1000 if "init_ps" in z else 0.0      # ns spent on initial-weight runs
     t = np.arange(n) * ps / 1000
     if temp:
         uk_all = u.T; u0 = u[:, 0]                   # u[n, k] = beta_k U(x_n); target = 300 K
@@ -847,7 +856,7 @@ def do_sams(name="sams"):
         return (pmf_hist(d[:m], logw=logw), mb) if ret_mbar else pmf_hist(d[:m], logw=logw)
     curves = []
     for frac in FRACS:
-        m = max(50, int(n * frac)); curves.append((f"{m*ps/1000:.1f} ns", m * ps / 1000, pmf(m)))
+        m = max(50, int(n * frac)); curves.append((f"{m*ps/1000:.1f} ns", m * ps / 1000 + t_init, pmf(m)))
     F = curves[-1][2]
     sync_fe = fe_sync(name, [(m * ps / 1000, pmf(m)) for m in np.unique(np.linspace(max(50, n // 25), n, 25).astype(int))],
                       "MBAR over the walker's history up to the frame shown")
@@ -891,7 +900,7 @@ def do_sams(name="sams"):
         extra = [panel(f"{name}-fk", "SAMS online estimate vs MBAR", "f_k is F smoothed by the umbrella; MBAR unsmooths it",
                        [ref_trace(), line(labels, fin, "SAMS f_k (online)", COLORS[name], dash="dot", width=2, mode="lines+markers"),
                         line(CENT, F, "MBAR", COLORS[name], width=2.5)], pmf_layout(dict(yaxis=dict(title="F (kcal/mol)", range=[0, 30]))))]
-    total = n * ps / 1000
+    total = n * ps / 1000 + t_init
     method = dict(key=name, syncs=[sams_state_sync(t, labels, st, d, temp, COLORS[name]), sync_fe], stats=stats_list(states=str(K), simulated=f"{total:.1f} ns", stage=("2 since " + f"{t[s1]:.1f} ns") if s1 else "1 (burn-in)",
                                               **{"ΔF 15→30 Å": f"{dF(F):.1f}" if dF(F) else "–"}),
                   trajectories=[dict(key=key, label="walker", group="trajectory")], default_traj=key,
@@ -982,7 +991,7 @@ def metric_traces(key, curves, what):
         if v is not None and ns and ns > 0:
             xs.append(float(ns)); ys.append(v if what == "err" else 100 * v)
     return dict(type="scatter", mode="lines+markers", x=clean(xs, 4), y=clean(ys, 3), name=NAMES[key],
-                line=dict(color=COLORS[key], width=2, **({"dash": "dash"} if key == "samsT" else {})),
+                line=dict(color=COLORS[key], width=2, **({"dash": DASH[key]} if key in DASH else {})),
                 marker=dict(size=7, color=COLORS[key]))
 
 
@@ -1010,7 +1019,7 @@ def main():
 
     results = {}
     for key, fn in [("reference", do_reference), ("md", do_md), ("metad", do_metad), ("gamd", do_gamd),
-                    ("remd", do_remd), ("sams", do_sams), ("samsT", lambda: do_sams("samsT")), ("we", do_we), ("we2d", lambda: do_we("we2d")), ("smd", do_smd)]:
+                    ("remd", do_remd), ("sams", do_sams), ("samsT", lambda: do_sams("samsT")), ("samsT0", lambda: do_sams("samsT0")), ("we", do_we), ("we2d", lambda: do_we("we2d")), ("smd", do_smd)]:
         t0 = time.time()
         try:
             r = fn()
@@ -1038,7 +1047,7 @@ def main():
     comp = [ref_trace()]
     for key in ORDER:
         if key in results and key != "reference":
-            comp.append(line(CENT, results[key][1]["F"], NAMES[key], COLORS[key], width=2, dash="dash" if key == "samsT" else None))
+            comp.append(line(CENT, results[key][1]["F"], NAMES[key], COLORS[key], width=2, dash=DASH.get(key)))
     cost = []
     for key in ORDER:
         if key in results and key != "reference":
@@ -1057,7 +1066,7 @@ def main():
     for key in ORDER:
         if key in results and key != "reference" and results[key][1].get("curves"):
             cv = sorted([(float(n_), F_) for n_, F_ in results[key][1]["curves"] if n_ and n_ > 0 and np.isfinite(F_).any()], key=lambda c: c[0])
-            timeline["methods"].append(dict(key=key, name=NAMES[key], color=COLORS[key], dash="dash" if key == "samsT" else None,
+            timeline["methods"].append(dict(key=key, name=NAMES[key], color=COLORS[key], dash=DASH.get(key),
                                             ns=[round(n_, 4) for n_, _ in cv], F=[clean(F_, 2) for _, F_ in cv]))
     allns = [n_ for m_ in timeline["methods"] for n_ in m_["ns"]]
     timeline.update(ns_min=min(allns) if allns else 0.1, ns_max=max(allns) if allns else 1)

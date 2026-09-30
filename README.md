@@ -58,7 +58,8 @@ open `/dashboard/`.
 | Well-tempered metadynamics | 20 ns, bias on d<sub>ee</sub>, γ = 10 | the bias |
 | Gaussian accelerated MD | 2 ns cMD + 4 ns equil + 14 ns dual boost | cumulant reweighting |
 | Temperature REMD | 10 replicas × 2.5 ns, 300–700 K | MBAR at 300 K |
-| SAMS over temperature | 12 ns, 12 temperatures | MBAR at 300 K |
+| SAMS over temperature | 12 ns, 12 temperatures, initial weights from 12 × 120 ps runs | MBAR at 300 K |
+| SAMS over temperature, uninitialized (cautionary) | 12 ns, all weights start at 0: never reaches 300 K | MBAR extrapolated to 300 K |
 | SAMS over umbrellas | 15 ns, 42 umbrellas | MBAR |
 | Weighted ensemble (d<sub>ee</sub> bins) | ~760 ns in 10 ps segments | bin weights |
 | Weighted ensemble (d<sub>ee</sub> × H-bond bins) | ~850 ns | bin weights |
